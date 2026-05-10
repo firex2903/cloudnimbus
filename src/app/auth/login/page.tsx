@@ -5,6 +5,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useRouter } from "next/navigation";
+import { setSession } from "@/lib/auth-store";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,8 +18,10 @@ export default function LoginPage() {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 1200));
     if (form.role === "psychologist") {
+      setSession({ role: "psychologist", name: "Ps. Claudia Araya", email: form.email });
       router.push("/dashboard");
     } else {
+      setSession({ role: "patient", name: form.email.split("@")[0], email: form.email });
       router.push("/patient");
     }
   };
