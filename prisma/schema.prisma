@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PSYCHOLOGIST
+  PATIENT
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  PAUSED
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum SessionType {
+  ONLINE
+  PRESENTIAL
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+enum TaskType {
+  TEXT
+  CHECKLIST
+  REFLECTION
+  EMOTIONAL_DIARY
+  FORM
+  VIDEO
+}
+
+enum MaterialType {
+  PDF
+  VIDEO
+  AUDIO
+  DOCUMENT
+  LINK
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum NotificationType {
+  SESSION
+  TASK
+  MATERIAL
+  SYSTEM
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String
+  role          UserRole @default(PATIENT)
+  avatarUrl     String?
+  specialty     String?
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Psychologist relations
+  patients          Patient[]       @relation("PsychologistPatients")
+  sessions          TherapySession[] @relation("PsychologistSessions")
+  tasks             Task[]          @relation("PsychologistTasks")
+  materials         Material[]
+  clinicalRecords   ClinicalRecord[]
+
+  // Patient relation
+  patientProfile    Patient?        @relation("PatientUser")
+
+  notifications     Notification[]
+
+  @@index([email])
+}
+
+model Patient {
+  id              String        @id @default(cuid())
+  name            String
+  lastName        String
+  email           String
+  phone           String
+  birthDate       DateTime?
+  notes           String?
+  status          PatientStatus @default(ACTIVE)
+  tags            String[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Psychologist who manages this patient
+  psychologistId  String
+  psychologist    User          @relation("PsychologistPatients", fields: [psychologistId], references: [id])
+
+  // Optional linked user account for portal access
+  userId          String?       @unique
+  user            User?         @relation("PatientUser", fields: [userId], references: [id])
+
+  sessions        TherapySession[]
+  tasks           Task[]
+  patientMaterials PatientMaterial[]
+  clinicalRecords ClinicalRecord[]
+  whatsappLogs    WhatsAppLog[]
+
+  @@index([psychologistId])
+}
+
+model TherapySession {
+  id              String        @id @default(cuid())
+  title           String
+  startTime       DateTime
+  endTime         DateTime
+  status          SessionStatus @default(SCHEDULED)
+  type            SessionType   @default(ONLINE)
+  meetingUrl      String?
+  notes           String?
+  calendlyEventId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patientId       String
+  patient         Patient       @relation(fields: [patientId], references: [id])
+
+  psychologistId  String
+  psychologist    User          @relation("PsychologistSessions", fields: [psychologistId], references: [id])
+
+  @@index([patientId])
+  @@index([psychologistId])
+  @@index([startTime])
+}
+
+model Task {
+  id              String      @id @default(cuid())
+  title           String
+  description     String?
+  type            TaskType
+  status          TaskStatus  @default(PENDING)
+  dueDate         DateTime?
+  fileUrl         String?
+  externalLink    String?
+  allowFileUpload Boolean     @default(false)
+  response        String?
+  responseFileUrl String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  patientId       String
+  patient         Patient     @relation(fields: [patientId], references: [id])
+
+  psychologistId  String
+  psychologist    User        @relation("PsychologistTasks", fields: [psychologistId], references: [id])
+
+  checklistItems  ChecklistItem[]
+
+  @@index([patientId])
+  @@index([psychologistId])
+  @@index([status])
+}
+
+model ChecklistItem {
+  id        String  @id @default(cuid())
+  label     String
+  completed Boolean @default(false)
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Material {
+  id              String       @id @default(cuid())
+  title           String
+  description     String?
+  type            MaterialType
+  fileUrl         String?
+  externalUrl     String?
+  category        String?
+  psychologistId  String
+  psychologist    User         @relation(fields: [psychologistId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  patientMaterials PatientMaterial[]
+
+  @@index([psychologistId])
+}
+
+model PatientMaterial {
+  id          String    @id @default(cuid())
+  patientId   String
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  materialId  String
+  material    Material  @relation(fields: [materialId], references: [id])
+  enabledAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  @@unique([patientId, materialId])
+}
+
+model ClinicalRecord {
+  id              String    @id @default(cuid())
+  title           String
+  url             String
+  description     String?
+  tags            String[]
+  date            DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  patientId       String
+  patient         Patient   @relation(fields: [patientId], references: [id])
+
+  psychologistId  String
+  psychologist    User      @relation(fields: [psychologistId], references: [id])
+
+  @@index([patientId])
+  @@index([psychologistId])
+}
+
+model WhatsAppLog {
+  id          String        @id @default(cuid())
+  phone       String
+  message     String
+  status      MessageStatus @default(PENDING)
+  sentAt      DateTime?
+  error       String?
+  createdAt   DateTime      @default(now())
+
+  patientId   String
+  patient     Patient       @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  type      NotificationType
+  createdAt DateTime         @default(now())
+
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([read])
+}
+
+model CalendarEvent {
+  id              String    @id @default(cuid())
+  externalId      String    @unique
+  source          String    // "calendly" | "google"
+  title           String
+  startTime       DateTime
+  endTime         DateTime
+  attendeeEmail   String?
+  attendeeName    String?
+  meetingUrl      String?
+  status          String    @default("active")
+  rawData         Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([externalId])
+  @@index([startTime])
+}
+
+model WhatsAppTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  message   String
+  type      String   // "session_reminder" | "task_reminder" | "welcome" | "custom"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
